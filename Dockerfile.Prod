@@ -1,0 +1,21 @@
+FROM ubuntu:20.04 as downloadTest
+WORKDIR /app
+COPY . .
+RUN apt update -yqq && apt install curl -yqq
+RUN /bin/bash ./scripts/download-test-geoip
+
+FROM golang:1.17-alpine3.14 as build
+RUN apk add --no-cache git tar
+WORKDIR /go/src/github.com/ali3bdalla/geodns
+COPY . .
+RUN go mod tidy
+RUN go build .
+
+FROM alpine:3.14
+WORKDIR /workspace
+COPY --from=downloadTest /usr/local/share/GeoIP /usr/local/share/GeoIP
+COPY --from=build /go/src/github.com/ali3bdalla/geodns/geodns /workspace/geodns
+RUN chmod +x /workspace/geodns
+RUN mkdir /workspace/dns
+
+CMD ["/workspace/geodns","-log","-interface","*","-http",":8053","-port","53"]
